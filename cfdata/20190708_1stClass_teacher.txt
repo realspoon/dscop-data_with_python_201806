@@ -78,7 +78,7 @@ controlPlaneEndpoint: "10.100.0.50:6443"
 
 M1# kubeadm init \
    --config=/etc/kubernetes/kubeadm/kubeadm-config.yaml \
-   --experimental-upload-certs
+   --upload-certs
 
 
   kubeadm join 10.100.0.50:6443 --token v5gwct.tbte079aj44vcss0 \
@@ -104,8 +104,6 @@ M2,3#  kubeadm join 10.100.0.50:6443 --token v5gwct.tbte079aj44vcss0 \
 # kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
 
 
-
-
 worker node
 #  kubeadm join 10.100.0.50:6443 --token v5gwct.tbte079aj44vcss0 \
     --discovery-token-ca-cert-hash sha256:e6756207755b5f4f3e71c1b586c27b37a8f0bdccf7034c0f1281256d47c1a4d6 
@@ -114,5 +112,20 @@ worker node
 master11# source <(kubectl completion bash)
 master11# echo "source <(kubectl completion bash)" >> ~/.bashrc
 
+
+
+==========matric server
+# yum install git -y
+# git clone https://github.com/kubernetes-incubator/metrics-server
+# cd metrics-server/deploy/1.8+
+# vim metrics-server-deployment.yaml
+
+imagePullPolicy: IfNotPresent
+command:
+- ./metrics-server
+- --kubelet-insecure-tls
+- --kubelet-preferred-address-types=InternalIP
+
+kubeadm join --token XXX 10.100.0.50:6443 --discovery-token-unsafe-skip-ca-verification
 
 

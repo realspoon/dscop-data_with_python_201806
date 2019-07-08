@@ -1,0 +1,111 @@
+# yum install -y yum-utils device-mapper-persistent-data lvm2
+
+# yum-config-manager \
+    --add-repo \
+    https://download.docker.com/linux/centos/docker-ce.repo
+# yum install docker-ce docker-ce-cli containerd.io
+
+# systemctl start docker 
+# systemctl enable docker 
+# systemctl status docker
+
+# docker version
+
+
+# setenforce 0
+# sed -i --follow-symlinks 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/sysconfig/selinux
+# systemctl stop firewalld && systemctl disable firewalld
+
+
+# cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+exclude=kube*
+EOF
+
+# yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
+# systemctl enable kubelet && systemctl start kubelet
+
+# cat << EOF >  /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+EOF
+
+# sysctl --system
+
+# swapoff -a && sed -i '/swap/s/^/#/' /etc/fstab
+# reboot
+
+
+=========== Load Balancer
+# mkdir /etc/nginx
+
+# vim /etc/nginx/nginx.conf
+events { }
+stream {
+    upstream stream_backend {
+        least_conn;
+        server 10.100.0.11:6443;
+        server 10.100.0.12:6443;
+        server 10.100.0.13:6443;
+    }
+
+    server {
+        listen        6443;
+        proxy_pass    stream_backend;
+        proxy_timeout 3s;
+        proxy_connect_timeout 1s;
+    }
+}
+
+#  docker run --name proxy -v /etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro \
+    -p 6443:6443 -d nginx
+
+# curl 10.100.0.50:6443
+
+
+============== Master1 Node
+
+# mkdir /etc/kubernetes/kubeadm
+
+# vim /etc/kubernetes/kubeadm/kubeadm-config.yaml
+apiVersion: kubeadm.k8s.io/v1beta1
+kind: ClusterConfiguration
+kubernetesVersion: stable
+controlPlaneEndpoint: "10.100.0.50:6443"
+
+# --experimental-upload-certs : 새로운 컨트롤 플레인 인증서 키를 생성
+# kubeadm init \
+    --config=/etc/kubernetes/kubeadm/kubeadm-config.yaml \
+    --experimental-upload-certs
+
+
+
+
+작업6:  metrics-server  설치
+Metrics Server is a cluster-wide aggregator of resource usage data.
+
+1. 아래 URL을 통해 Metric Server를 다운로드 받아 Pod로 설치한다.
+# yum install git -y
+# git clone https://github.com/kubernetes-incubator/metrics-server
+# cd metrics-server/deploy/1.8+
+# vim metrics-server-deployment.yaml
+...
+        image: k8s.gcr.io/metrics-server-amd64:v0.3.1
+        imagePullPolicy: IfNotPresent
+        command:
+        - ./metrics-server
+        - --kubelet-insecure-tls
+        - --kubelet-preferred-address-types=InternalIP
+        volumeMounts:
+        - name: tmp-dir
+          mountPath: /tmp
+
+# kubectl apply -f ./
+# kubectl get pods --all-namespaces

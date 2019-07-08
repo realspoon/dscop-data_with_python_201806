@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-appjs
+  labels:
+    project: Happy-Web
+    service: web
+    version: "0.1"
+spec:
+  containers:
+  - name: appjs
+    image: smlinux/appjs
+    ports:
+    - containerPort: 8080
