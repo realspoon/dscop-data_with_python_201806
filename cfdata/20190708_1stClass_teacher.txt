@@ -1,0 +1,118 @@
+ftp://59.29.224.77/pub
+	note.txt
+	
+docs.docker.com
+
+1. docker install
+yum install -y yum-utils device-mapper-persistent-data lvm2 -y
+yum-config-manager   --add-repo  https://download.docker.com/linux/centos/docker-ce.repo
+yum install docker-ce docker-ce-cli containerd.io -y
+systemctl start docker && systemctl enable docker 
+
+
+2. Kubernetes install
+
+cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+EOF
+
+yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
+
+setenforce 0
+sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
+
+systemctl stop firewalld && systemctl disable firewalld
+
+cat <<EOF >  /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+EOF
+sysctl --system
+
+swapoff -a && sed -i '/swap/s/^/#/' /etc/fstab
+
+systemctl enable --now kubelet
+
+
+3. Load Balancer
+# mkdir /etc/nginx
+# cat > /etc/nginx/nginx.conf
+events { }
+stream {
+	upstream stream_backend {
+		least_conn;
+		server 10.100.0.11:6443;
+		server 10.100.0.12:6443;
+		server 10.100.0.13:6443;
+	}
+	server {
+		listen 6443;
+		proxy_pass stream_backend;
+		proxy_timeout 3s;
+		proxy_connect_timeout 1s;
+	}
+}
+
+docker run --name proxy -v /etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro -p 6443:6443 -d nginx
+
+# curl localhost:6443
+curl: (52) Empty reply from server
+
+
+
+4. HA cluster - 3 master + 3 work nodes
+# mkdir /etc/kubernetes/kubeadm
+
+# cat >  /etc/kubernetes/kubeadm/kubeadm-config.yaml
+apiVersion: kubeadm.k8s.io/v1beta1
+kind: ClusterConfiguration
+kubernetesVersion: stable
+controlPlaneEndpoint: "10.100.0.50:6443"
+
+
+M1# kubeadm init \
+   --config=/etc/kubernetes/kubeadm/kubeadm-config.yaml \
+   --experimental-upload-certs
+
+
+  kubeadm join 10.100.0.50:6443 --token v5gwct.tbte079aj44vcss0 \
+    --discovery-token-ca-cert-hash sha256:e6756207755b5f4f3e71c1b586c27b37a8f0bdccf7034c0f1281256d47c1a4d6 \
+    --experimental-control-plane --certificate-key 0ce8c5562eec987792006245141f469a05ecdf9c17b64f35440e7a4207b30d19
+
+
+  kubeadm join 10.100.0.50:6443 --token v5gwct.tbte079aj44vcss0 \
+    --discovery-token-ca-cert-hash sha256:e6756207755b5f4f3e71c1b586c27b37a8f0bdccf7034c0f1281256d47c1a4d6 
+
+
+ mkdir -p $HOME/.kube
+ sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+ sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+
+
+M2,3#  kubeadm join 10.100.0.50:6443 --token v5gwct.tbte079aj44vcss0 \
+    --discovery-token-ca-cert-hash sha256:e6756207755b5f4f3e71c1b586c27b37a8f0bdccf7034c0f1281256d47c1a4d6 \
+    --experimental-control-plane --certificate-key 0ce8c5562eec987792006245141f469a05ecdf9c17b64f35440e7a4207b30d19
+
+
+# kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+
+
+
+
+worker node
+#  kubeadm join 10.100.0.50:6443 --token v5gwct.tbte079aj44vcss0 \
+    --discovery-token-ca-cert-hash sha256:e6756207755b5f4f3e71c1b586c27b37a8f0bdccf7034c0f1281256d47c1a4d6 
+
+
+master11# source <(kubectl completion bash)
+master11# echo "source <(kubectl completion bash)" >> ~/.bashrc
+
+
+
