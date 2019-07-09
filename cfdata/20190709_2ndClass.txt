@@ -43,3 +43,5 @@ testrc-rpccd   1/1     Running   0          17h   app=hpe
 # annotating pods : 라벨처럼 쓰기는 하나 식별정보를 보유하지 않음, 선택으로 쓰지는 못하지만 객체 정보를 제공하는데 사용
 
 
+# 
+

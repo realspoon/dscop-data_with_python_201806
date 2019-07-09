@@ -159,6 +159,236 @@ kubectl get pv # Retain : locking 되어버림 recycle 정책
 # kubectl get secret nosy-wombat-redis -o  jsonpath="{.data.redis-password}" | base64 --decode
 mypassword
 
+=== =========================****================
+1. 작업 할 경로를 만듭니다.
+$ mkdir -p ~/development/my-first-helm-chart
+$ cd ~/development/my-first-helm-chart
+
+
+2. 실습에 사용할 yaml 매니패스트를 생성한다.
+$ mkdir manifests
+$ kubectl run example --image=nginx:1.13.5-alpine \
+    -o yaml > manifests/deployment.yaml
+$ kubectl expose deployment example --port=80 --type=NodePort \
+    -o yaml > manifests/service.yaml
+$ kubectl get service example 
+# curl http://10.100.0.21:30254
+
+$ tree manifests
+manifests
+├── deployment.yaml
+└── service.yaml
+$ kubectl delete -f manifests
+deployment "example" deleted
+service "example" deleted
+
+
+
+
+3. 헬름의 chart를 작성한다.
+$ helm create web
+Creating web
+# tree web
+web
+├── charts
+├── Chart.yaml
+├── templates
+│   ├── deployment.yaml
+│   ├── _helpers.tpl
+│   ├── ingress.yaml
+│   ├── NOTES.txt
+│   ├── service.yaml
+│   └── tests
+│       └── test-connection.yaml
+└── values.yaml
+
+3 directories, 8 files
+
+
+Helm은 여러 파일과 디렉토리를 생성합니다.
+Chart.yaml - 헬름 차트의 메타 데이터.
+values.yaml - 템플릿에서 변수로 사용할 수 있는 값.
+templates/*.yaml - 예제 Kubernetes가 나타납니다.
+_helpers.tpl - 템플릿 내부에서 사용할 수 있는 함수.
+templates/NOTES.txt - 차트 설치에 표시되는 템플리트 노트.
+
+
+4. Chart.yaml다음과 같이 편집
+# cat > web/Chart.yaml 
+apiVersion: v1
+description: My First Web Chart - NGINX
+name: web
+version: 0.1.0
+
+
+5. 앞에서 생성한 매니페스트 파일을 복사하고 사용하지 않는 NOTE.txt, ingress.txt 파일을 삭제한다.
+# cp manifests/* web/templates/
+cp: overwrite ‘web/templates/deployment.yaml’? y
+cp: overwrite ‘web/templates/service.yaml’? y
+
+# rm web/templates/ingress.yaml
+# rm web/templates/NOTES.txt
+
+
+6. 다음과 같이 web 차트를 실행한다.
+# helm install -n web-server web
+NAME:   web-server
+LAST DEPLOYED: Mon Jul  8 12:48:37 2019
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1/Deployment
+NAME     READY  UP-TO-DATE  AVAILABLE  AGE
+example  0/1    0           0          1s
+
+==> v1/Pod(related)
+NAME                      READY  STATUS             RESTARTS  AGE
+example-7d5756bddc-97mbs  0/1    ContainerCreating  0         1s
+
+==> v1/Service
+NAME     TYPE      CLUSTER-IP      EXTERNAL-IP  PORT(S)       AGE
+example  NodePort  10.100.249.254  <none>       80:32594/TCP  1s
+
+
+# kubectl get pods
+
+
+# helm list 
+
+
+# curl node22.example.com:32594
+	NGINX 실행화면
+
+7. 생성된 차트가 잘 실행되는 것을 확인하였으면 애플리케이션을 삭제한다.
+# helm del --purge web-server
+release "web-server" deleted
+
+
+작업 5: helm 차트에 values 변수 추가하기
+1. web/values.yaml 다음과 같이 편집 하십시오.
+# cat > web/values.yaml 
+replicaCount: 1
+image:
+  repository: nginx
+  tag: 1.13.5-alpine
+  pullPolicy: IfNotPresent
+  pullSecret:
+service:
+  type: NodePort
+
+
+2. 생성한 values.yaml에 정의된 변수를 적용한 deployment.yaml, svc.yaml을 생성한다.
+# cat > web/templates/deployment.yaml
+    apiVersion: extensions/v1beta1
+    kind: Deployment
+    metadata:
+    annotations:
+        deployment.kubernetes.io/revision: "1"
+    creationTimestamp: "2019-07-08T16:56:39Z"
+    generation: 1
+    labels:
+        run: "{{ .Release.Name }}"
+        chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+        release: "{{ .Release.Name }}"
+        heritage: "{{ .Release.Service }}"     
+    name: "{{ .Release.Name }}"
+    namespace: default
+    resourceVersion: "3030"
+    selfLink: /apis/extensions/v1beta1/namespaces/default/deployments/example
+    uid: fd03ac95-a84b-11e7-a417-0800277e13b3
+    spec:
+    replicas: {{ .Values.replicaCount }}
+    selector:
+        matchLabels:
+        run: "{{ .Release.Name }}"
+    strategy:
+        rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 1
+        type: RollingUpdate
+    template:
+        metadata:
+        creationTimestamp: null
+        labels:
+            run: "{{ .Release.Name }}"
+        spec:
+        {{- if .Values.image.pullSecret }}    
+                imagePullSecrets:
+                - name: "{{ .Values.image.pullSecret }}"
+        {{- end }}          
+        containers:
+        - image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            name: example
+            resources: {}
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    status: {}
+
+
+# cat > web/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: "2019-07-08T16:56:39Z"
+  labels:
+    run: "{{ .Release.Name }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"  
+  name: "{{ .Release.Name }}"
+  namespace: default
+  resourceVersion: "3066"
+  selfLink: /api/v1/namespaces/default/services/example
+  uid: 044d2b7e-a84c-11e7-a417-0800277e13b3
+spec:
+  clusterIP:
+  externalTrafficPolicy: Cluster
+  ports:
+  - nodePort: 30254
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    run: "{{ .Release.Name }}"
+  sessionAffinity: None
+  type: "{{ .Values.service.type }}"
+status:
+  loadBalancer: {}
+
+
+3. 변경된 chart를 실행해본다.
+# helm install -n second web
+NAME:   second
+LAST DEPLOYED: Mon Jul  8 13:05:55 2019
+NAMESPACE: default
+STATUS: DEPLOYED
+
+RESOURCES:
+==> v1/Pod(related)
+NAME                     READY  STATUS             RESTARTS  AGE
+second-66c7749c65-zltvz  0/1    ContainerCreating  0         0s
+
+==> v1/Service
+NAME    TYPE      CLUSTER-IP      EXTERNAL-IP  PORT(S)       AGE
+second  NodePort  10.108.133.255  <none>       80:30254/TCP  0s
+
+==> v1beta1/Deployment
+NAME    READY  UP-TO-DATE  AVAILABLE  AGE
+second  0/1    0           0          0s
+
+# curl node23.example.com:30254
+	NGINX 실행 
+
+
+4. 동작중인 서비스의 이름을 변경하여 업데이트 해보자.
+#  helm upgrade --set image.repository=httpd --set image.tag=2.2.34-alpine second web
 
 
 = helm 저장소 운영
