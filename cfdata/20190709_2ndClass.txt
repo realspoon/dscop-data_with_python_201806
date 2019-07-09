@@ -1,0 +1,45 @@
+# Kubernetes Network 동작원리, iptables 원리, registry 연동
+
+# docker run always 변경
+docker update --restart=always proxy
+
+cat testpod.yaml # 최소단위의 yaml
+# yaml 안의 dash : 여러개가 올 수 있다. (배열)
+
+# 도커 레지스트리 인증 체계 구성하고 yaml안에서 인증을 할 수 있도록 만들거다.
+
+파드안에 컨테이너가 2개인 경우 컨테이너 이름으로 구별하여 접속할 수 있다. (파드에 컨테이너 1개인 경우 이름은 의미가 적어진다)
+
+cat testpod-rc.yaml # label 보기
+# Pod label selector (key, value)
+# Node Labels : 지정된 노드에서 돌리기 위해.
+
+# RS 를 통해 수식을 사용하여 선택 (실렉터를 강화)
+
+[root@master11 2]# kubectl get pods --show-labels
+NAME           READY   STATUS    RESTARTS   AGE   LABELS
+testrc-4klzl   1/1     Running   0          17h   app=hpe
+testrc-6sx88   1/1     Running   0          17h   app=hpe
+testrc-8zk8b   1/1     Running   0          17h   app=hpe
+testrc-ks744   1/1     Running   0          17h   app=hpe
+testrc-qhdst   1/1     Running   0          17h   app=hpe
+testrc-rpccd   1/1     Running   0          17h   app=hpe
+[root@master11 2]# kubectl label pod testrc-4klzl version=1.0
+pod/testrc-4klzl labeled
+[root@master11 2]# kubectl label pod testrc-4klzl version=2.0
+error: 'version' already has a value (1.0), and --overwrite is false
+[root@master11 2]# kubectl label pod testrc-4klzl version=2.0 --overwrite
+pod/testrc-4klzl labeled
+[root@master11 2]# kubectl get pods --show-labels
+NAME           READY   STATUS    RESTARTS   AGE   LABELS
+testrc-4klzl   1/1     Running   0          17h   app=hpe,version=2.0
+testrc-6sx88   1/1     Running   0          17h   app=hpe
+testrc-8zk8b   1/1     Running   0          17h   app=hpe
+testrc-ks744   1/1     Running   0          17h   app=hpe
+testrc-qhdst   1/1     Running   0          17h   app=hpe
+testrc-rpccd   1/1     Running   0          17h   app=hpe
+
+# 라벨 제거 명령어 check
+# annotating pods : 라벨처럼 쓰기는 하나 식별정보를 보유하지 않음, 선택으로 쓰지는 못하지만 객체 정보를 제공하는데 사용
+
+

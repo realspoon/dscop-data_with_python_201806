@@ -1,6 +1,10 @@
-ftp://59.29.224.77/pub
-	note.txt
-	
+# 1. 가상환경 구성 (virtualbox, vagrant)
+# 2. Install docker
+# 3. Install Kubernetes
+# 4. Setting Load Balancer
+# 5.1. HA cluster - 3 master + 3 work nodes for Kubernetes Admin
+# 5.2. HA cluster - 1 master + 3 work nodes for Developer
+
 docs.docker.com
 
 1. docker install

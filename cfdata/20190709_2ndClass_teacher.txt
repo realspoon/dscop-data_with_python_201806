@@ -1,0 +1,188 @@
+
+# yum install httpd-tools
+# mkdir /config
+# cd /config
+# htpasswd -c -B dockerpasswd smlee
+
+# docker run --name registry -p 5000:5000 -d registry
+# docker cp registry:/etc/docker/registry/config.yml .
+
+# docker rm -f registry
+# vim config.yaml
+...
+auth:
+  htpasswd:
+    realm: example.com
+    path: /config/dockerpasswd
+
+# docker rm -f registry 
+
+# cat > /etc/docker/daemon.json
+{
+  "insecure-registries": ["10.100.0.0/24"]
+}
+
+# systemctl stop docker
+# systemctl start docker
+
+
+container registry
+# docker run -d --restart=always --name registry -p 80:80 \
+    -v /images:/var/lib/registry  -v /config:/config registry /config/config.yml
+
+
+# docker pull nginx
+
+# docker tag nginx docker.example.com/nginx:latest
+# docker push docker.example.com/nginx
+# docker login docker.example.com
+
+
+
+# secret
+kubectl create secret docker-registry credentials --docker-server=docker.example.com \
+--docker-username=smlee --docker-password="work" --docker-email="smlee@example.com"
+
+
+# cat > pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: private-registry
+spec:
+  containers:
+  - name: private-registry-test
+    image: docker.example.com/nginx
+  imagePullSecrets:
+  - name: credentials
+
+# curl https://raw.githubusercontent.com/helm/helm/master/scripts/get > get_helm.sh
+# chmod 700 get_helm.sh
+# ./get_helm.sh
+
+Helm Repository
+	local    : http://127.0.0.1:8879/charts
+	stable  : https://kubernetes-charts.storage.googleapis.com
+	incubator :  helm repo add incubator https://kubernetes-charts-incubator.storage.googleapis.com/
+
+
+
+command 완성
+# source <(helm completion bash)
+# echo "source <(helm completion bash)" >> ~/.bashrc
+
+- Delete Tiller
+# kubectl -n kube-system delete deployment tiller-deploy
+# kubectl delete clusterrolebinding tiller
+# kubectl -n kube-system delete serviceaccount tiller
+
+- Reinstall with RBAC
+# kubectl -n kube-system create serviceaccount tiller
+# kubectl create clusterrolebinding tiller --clusterrole cluster-admin --serviceaccount=kube-system:tiller
+# helm init --service-account=tiller
+
+
+==================***=======================
+# cat mysql-pv.yaml 
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mysql-pv
+spec:
+  capacity: 
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+    - ReadOnlyMany
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: /opt/mysql
+
+# kubectl create -f mysql-pv.yaml 
+
+# kubectl get pv
+
+
+
+pvc를 생성한다.
+# cat mysql-pvc.yaml 
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: mysql-pvc
+spec:
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+# kubectl create -f mysql-pvc.yaml 
+# kubectl get pvc
+
+# helm install --name mysql --set mysqlRootPassword=pass,mysqlUser=mysql,mysqlPassword=work,mysqlDatabase=mydatabase,persistence.existingClaim=mysql-pvc stable/mysql
+
+# kubectl get pods
+# MYSQL_ROOT_PASSWORD=$(kubectl get secret --namespace default mysql -o jsonpath="{.data.mysql-root-password}" | base64 --decode; echo)
+
+# echo $MYSQL_ROOT_PASSWORD 
+pass
+
+# kubectl run -i --tty ubuntu --image=ubuntu:16.04 --restart=Never -- bash -il
+/# apt-get update && apt-get install mysql-client -y
+/# mysql -h mysql –p
+/# show databases;
+/# exit
+
+# helm ls
+# helm delete mysql
+# helm ls --all
+# helm rollback mysql 1
+# helm delete --purge mysql # revision 정보까지 지움
+# helm ls --all
+kubectl get pvc # pvc 는 안 지움
+kubectl delete pvc mysql-pvc
+kubectl get pvc
+kubectl get pv # Retain : locking 되어버림 recycle 정책
+
+=== chart 생성
+
+# helm fetch stable/redis
+# tar zxvf redis-4.3.0.tgz
+# tree redis
+# vim redis/values.yaml
+# vim Chart.yaml
+# helm install ./redis
+# helm ls
+
+# kubectl get secret nosy-wombat-redis -o  jsonpath="{.data.redis-password}" | base64 --decode
+mypassword
+
+
+
+= helm 저장소 운영
+# curl -LO https://s3.amazonaws.com/chartmuseum/release/latest/bin/linux/amd64/chartmuseum
+# chmod +x ./chartmuseum
+# mv ./chartmuseum /usr/local/bin
+
+# chartmuseum --debug --port=8080 \
+  --storage="local" \
+  --storage-local-rootdir="./chartstorage"
+
+
+maser12.example.com:8080
+# curl http://master11.example.com:8080/api/charts
+{}
+
+
+# helm package redis
+# curl --data-binary "@redis-0.1.0.tgz" http://localhost:8080/api/charts
+# curl http://localhost:8080/api/charts
+# helm repo add chartmuseum http://localhost:8080
+# helm search chartmuseum
+# heml install chartmuseum/redis
+
+
+
+

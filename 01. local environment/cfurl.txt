@@ -1,0 +1,7 @@
+
+# ssh_key : http://taewan.kim/post/ssh_key/
+            https://itzone.tistory.com/694
+# vagrant : https://learning.oreilly.com/library/view/hands-on-devops-with/
+# virsh   : https://thebook.io/006718/part02/ch04/04/02/
+
+# nomad   : https://www.hashicorp.com/resources/hashicorp-nomad-vs-kubernetes-comparing-complexity
