@@ -1,0 +1,525 @@
+
+# dashboard git
+https://github.com/kubernetes/dashboard
+
+# curl -O https://raw.githubusercontent.com/kubernetes/dashboard/v1.10.1/src/deploy/recommended/kubernetes-dashboard.yaml
+
+# 10.100.0.12 : master
+# nohup kubectl proxy --address="10.100.0.12" -p 443 --accept-hosts='^*$' &
+
+# kubernetes dashboard
+http://10.100.0.12:443/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/
+
+# Token 으로 접속하기
+# kubectl -n kube-system describe secret $(kubectl -n kube-system get secret | grep kubernetes-dashboard-admin-token | awk '{print $1}')
+
+# Install heapster 
+# yum install -y git
+# git clone https://github.com/kubernetes/heapster.git
+
+# nginx https://github.com/nginxinc/docker-nginx/blob/f9fbfcbcb24cb1fd6d207d33e9345d3e6dbb8ff2/mainline/stretch/Dockerfile
+# 표준출력을 처리해주는 코드
+# forward request and error logs to docker log collector
+RUN ln -sf /dev/stdout /var/log/nginx/access.log \
+&& ln -sf /dev/stderr /var/log/nginx/error.log
+
+===========***=========
+작업 1: Elasticsearch 운영
+Elasticsearch는 루씬 라이브러리를 단독으로 사용할 수 있게 되었으며, 방대한 양의 데이터를 신속하게 저장, 검색, 분석한다.
+
+# cat log-pv.yaml 
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: log-pv
+spec:
+  capacity: 
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+    - ReadOnlyMany
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: /opt/log
+
+
+# kubectl create -f log-pv.yaml 
+persistentvolume/log-pv created
+
+# kubectl create -f elasticsearch.yaml 
+persistentvolumeclaim/elasticsearch-pvc created
+service/elasticsearch created
+deployment.apps/elasticsearch created
+configmap/elasticsearch-config created
+
+
+
+# kubectl get pod -n kube-system
+
+...
+작업2: Kibana 운영
+Kibana는 Elasticsearch와 함께 사용하는 플러그인이다. 일랙스틱서치는 데이터를 저장하고 인덱싱화한다. 
+
+# elasticsearch 의 위치정보를 수정 : cluster ip 를 elasticsearch 을 대체함
+# kubectl create -f kibana.yaml 
+service/kibana created
+deployment.apps/kibana created
+# kubectl get pod -n kube-system
+
+
+# kubectl get svc -n kube-system 
+
+
+열려있는 nodePort로 접속한다.
+
+
+작업 3: fluentd 운영 https://github.com/fluent/fluentd-kubernetes-daemonset
+Fluentd는 분산 로그 & 데이타 수집기이다. 각 서버에, Fluentd를 설치하면, 서버에서 기동되고 있는 서버(또는 애플리케이션)에서 로그를 수집해서 중앙 로그 저장소로 정의된 Elasticsearch으로 전송한다.
+
+# kubectl create -f fluentd-daemonset.yaml 
+daemonset.apps/fluentd created
+
+# kubectl -n kube-system get pod -l app=fluentd-logging -o wide
+
+
+
+작업 4: 애플리케이션 파트 실행후 로그 확인
+로그를 출력하는 간단한 애플리케이션을 실행하여 fluentd가 수집하여 Elasticsearch로 전달하고, kibana가 가시화하여 출력함을 확인해본다.
+# cat hpe-pod.yaml 
+apiVersion: v1
+kind: Service
+metadata:
+  name: hpe
+spec:
+  selector:
+    app: hpe 
+  ports:
+  - protocol: TCP
+    port: 80 
+    targetPort: http 
+    nodePort: 30081
+  type: NodePort
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hpe
+  labels:
+    app: hpe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hpe
+  template:
+    metadata:
+      labels:
+        app: hpe
+    spec:
+      containers:
+      - name: nginx
+        image: smlinux/nginx:latest
+        env:
+        - name: BACKEND_HOST
+          value: localhost:8080
+        - name: LOG_STDOUT
+          value: "true"
+        ports:
+        - name: http
+          containerPort: 80
+      - name: hpe
+        image: smlinux/hello-hpe:latest
+        ports:
+        - containerPort: 8080
+
+
+
+# kubectl create -f hpe-pod.yaml 
+service/hpe created
+deployment.apps/hpe created
+
+
+# kubectl get pod
+
+
+
+NodePort 30081을 통해 HTTP요청을 진행한다.
+# curl node21.example.com:30081
+HPE Education Center!!
+
+=======#############================
+
+# cat network.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-network
+spec:
+  hostNetwork: true
+  containers:
+  - name: main
+    image: alpine
+    command: ["/bin/sleep", "999999"]
+
+# kubectl create –f network.yaml
+
+포드 실행 후 네트워크 정보를 확인하면 호스트 네트워크가 표시됨을 확인할 수 있다.
+# kubectl exec host-network ifconfig
+
+Hostport Forwarding
+Pod 내부에서 호스트 노드의 포트에 바인딩할 수 있다. 이는 네트워크 네임스페이스를 해제하는 것은 아니고, 포트만 바인딩하는 것이다. hostPort를 사용하는 포드와 NodePort를 사용하는 서비스를 혼돈하면 안된다. 
+• hostPortNodePort에 대한 연결이 해당 노드에서 실행중인 포드로 직접 전달NodePort가 이런 포드를 실행하는 노드에서만 바인딩
+• NodePortNodePort에 대한 연결이 무작위로 선택된 포드로 전달포드를 실행하지 않는 모든 노드에서도 포트를 바인딩할 수 있음.
+
+
+
+# cat > hostport.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hostport
+spec:
+  containers:
+  - image: smlinux/appjs
+    name: appjs
+    ports:
+    - containerPort: 8080
+      hostPort: 9000
+      protocol: TCP
+
+# kubectl create –f hostport.yaml 
+
+# kubectl get pods -o wide
+hostport      1/1     Running   0          64s     10.44.0.2      node21.example.com
+
+node21# curl localhost:9000
+Container Hostname: hostport
+
+
+PID, ICP namespace 사용
+Pod에서 hostPID, hostIPC 기능을 사용하면 호스트 노드의 PID 및 IPC 네임스페이스를 사용할수 있다. 때문에 컨테이너에서 실행중인 프로세스가 호스트 노드의 모든 프로세스를 보거나 IPC를 통해 노드와 통신할 수 있게 된다.
+# cat > pid-ipc.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-pid-ipc
+spec:
+  hostPID: true
+  hostIPC: true
+  containers:
+  - name: main
+    image: alpine
+    command: ["/bin/sleep", "999999"]
+
+# kubectl create –f pid-ipc.yaml
+
+# kubectl exec host-pid-ipc  ps aux
+
+
+- example
+컨테이너가 root로 실행되는 것을 방지
+1. 비교를 위해 일반 포드 하나 생성해서 권한정보를 확인하자.
+# kubectl run pod-with-defaults --image=alpine --restart Never -- /bin/sleep 99999
+# kubectl get pod
+NAME                READY     STATUS        RESTARTS   AGE
+pod-with-defaults   1/1       Running       0          22s
+
+id : 컨테이너가 어떤 계정으로 실행하는지 보자. 결과 보면 컨테이너 안에서는 root 사용자로 사용된다. root는 별루 추천하지 않아요.
+# kubectl exec pod-with-defaults -- id
+uid=0(root) gid=0(root) groups=0(root),1(bin),2(daemon),3(sys),4(adm),6(disk),10(wheel),11(floppy),20(dialout),26(tape),27(video)
+
+
+2. 컨테이너를 다른 유저로 실행되도록 바꿔본다.  yaml 파일을 생성하여 405(guest) 계정으로 실행되도록 해본다.
+# kubectl exec pod-with-defaults -- grep 405  /etc/passwd
+guest:x:405:100:guest:/dev/null:/sbin/nologin
+
+# cat > pod-as-user-guest.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-as-user-guest
+spec:
+  containers:
+  - image: alpine
+    name: main
+    command: ["/bin/sleep", "99999"]
+    securityContext:
+      runAsUser: 405
+
+# kubectl create -f pod-as-user-guest.yaml
+# kubectl get pod
+pod-as-user-guest   1/1       Running   0          14s
+
+확인하니 root가 아닌 guest로 실행되었다.
+# kubectl exec pod-as-user-guest -- id
+uid=405(guest) gid=100(users)
+# kubectl delete pod --all
+
+3. 컨테이너 이미지를 생성할 때 root가 아닌 특정유저로 실행하도록 정책을 세우고, 만약 root로 실행하면 차단시킨다.
+# cp pod-as-user-guest.yaml non.yaml
+# vim non.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: non-root
+spec:
+  containers:
+  - name: main
+    image: alpine
+    command: ["/bin/sleep", "999999"]
+    securityContext:
+      runAsNonRoot: true
+
+# kubectl create –f  non.yaml
+
+# kubectl get po -o wide
+non-root   0/1       CreateContainerConfigError   0       2m        10.244.2.148   host24-3.cloud.com
+
+실행 안 되는 것이 정상입니다. root로 실행되는 것이 차단되었다.
+# kubectl describe po non-root
+
+
+# kubectl delete pod --all
+
+
+4. privileged mode : supervisor mode. 노드의 커널에 대한 모든 access를 얻으려면 시스템의 완전한 full access를 지원한다. 이러한 기능을 지원하는 쿠버네티스 파드로 kube-proxy이다.
+# kubectl get pod -n kube-system kube-proxy-2njds –o yaml
+...
+spec:
+	...
+    image: k8s.gcr.io/kube-proxy:v1.15.0
+    imagePullPolicy: IfNotPresent
+    name: kube-proxy
+    resources: {}
+    securityContext:
+      privileged: true
+
+간단하게 example pod를 생성하여 확인해보자.
+# cat default.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: default
+spec:
+  containers:
+  - name: main
+    image: alpine
+    command: ["/bin/sleep", "999999"]
+
+
+# cat priv.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: privileged
+spec:
+  containers:
+  - name: main
+    image: alpine
+    command: ["/bin/sleep", "999999"]
+    securityContext:
+      privileged: true
+
+# kubectl create -f default.yaml
+
+# kubectl create -f priv.yaml
+
+# kubectl get po -o wide
+
+
+# kubectl exec -it default -- ls /dev/
+
+
+
+# kubectl exec -it privileged -- ls /dev/
+   
+
+5. capabilities
+Pod에 특정 기능을 허용하여 동작시킨다. 예를 들어 일반 포드는 시스템 시간 변경 안되는데, SYS_TIME을 통해 능력을 할당해줄 수 있다.
+# kubectl exec -it default -- date
+Wed Jul 10 00:24:04 UTC 2019
+
+# kubectl exec -it default -- date +%T -s "12:00:00"
+date: can't set date: Operation not permitted
+12:00:00
+
+일반 포드는 시스템 시간 변경할 수 있는 권한이 없다.  capabilities의 기능 중 SYS_TIME을 통해  가능하도록 해보자.
+# man 7 capabilities
+
+# cat > settime.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: settime-capability
+spec:
+  containers:
+  - name: main
+    image: alpine
+    command: ["/bin/sleep", "999999"]
+    securityContext:
+      capabilities:
+        add:
+        - SYS_TIME
+
+# kubectl create -f  settime.yaml
+
+
+# kubectl get po 
+
+
+# kubectl exec –it settime-capability -- date +%T -s "12:00:00"
+12:00:00
+
+# kubectl exec -it pod-capability -- date
+Fri Jul 20 12:01:01 UTC 2018
+
+- Filesystem 보안
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-with-readonly-filesystem
+spec:
+  containers:
+  - name: main
+    image: alpine
+    command: ["/bin/sleep", "999999"]
+    securityContext:
+      readOnlyRootFilesystem: true     ## 전체 파일시스템을 readonly 로 적용
+
+    volumeMounts:			## mount한 볼륨 제외
+    - name: my-volume
+      mountPath: /volume
+      readOnly: false
+  volumes:
+  - name: my-volume
+    emptyDir:
+
+# cat pod-with-shared-volume-fsgroup.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-with-shared-volume-fsgroup
+spec:
+  securityContext:
+    fsGroup: 555
+    supplementalGroups: [666, 777]
+  containers:
+  - name: first
+    image: alpine
+    command: ["/bin/sleep", "999999"]
+    securityContext:
+      runAsUser: 1111
+      runAsGroup: 1111
+    volumeMounts:
+    - name: shared-volume
+      mountPath: /volume
+      readOnly: false
+  - name: second
+    image: alpine
+    command: ["/bin/sleep", "999999"]
+    securityContext:
+      runAsUser: 2222
+      runAsGroup: 2222
+    volumeMounts:
+    - name: shared-volume
+      mountPath: /volume
+      readOnly: false
+  volumes:
+  - name: shared-volume
+    emptyDir:
+
+
+Default 제한(limits) :  PodSecurityPolicy
+
+# cat pod-security-policy.yaml
+apiVersion: extensions/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: default-policy
+spec:
+  hostIPC: false
+  hostPID: false
+  hostNetwork: false
+  hostPorts:
+  - min: 10000
+    max: 11000
+  - min: 13000
+    max: 14000
+  privileged: false
+  readOnlyRootFilesystem: true
+  runAsUser:
+    rule: RunAsAny
+  fsGroup:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  seLinux:
+    rule: RunAsAny
+  volumes:
+  - '*'
+
+
+
+# vim netpolicy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: netpolicy
+spec:
+  podSelector:
+    matchLabels:
+      app: hpe
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: bash
+    ports:
+    - port: 8080
+
+
+# cat testpod.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: hpe
+  name: testpod
+spec:
+  containers:
+  - image: smlinux/appjs
+    name: test
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+
+
+
+# cat clientpod.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: bash
+  name: clientpod
+spec:
+  containers:
+  - image: centos
+    name: centos
+    command: ["/bin/sleep", "999999"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+

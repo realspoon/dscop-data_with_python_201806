@@ -3,7 +3,7 @@ kind: Pod
 metadata:
   name: pod-as-user-guest
 spec:
-containers:
+  containers:
   - image: alpine
     name: main
     command: ["/bin/sleep", "99999"]
