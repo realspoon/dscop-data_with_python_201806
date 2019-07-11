@@ -1,0 +1,254 @@
+# cp testpod.yaml testpod-limit-1.yaml
+# vim testpod-limit-1.yaml
+	....
+    - containerPort: 8080
+      protocol: TCP
+    resources:
+      limits:
+        memory: 512Mi
+        cpu: 200m
+      requests:
+        memory: 256Mi
+        cpu: 100m
+
+
+--- LimitRange
+	네임스페이스에서 pod의 리소스르 제한, 기본설정
+
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: limit-example
+spec:
+  limits:
+  - type: Pod		## Pod에 resources 를 제한할때 request/limit  cpu가 최소 50m 최대 1000m
+    min:
+      cpu: 50m
+      memory: 5Mi
+    max:
+      cpu: 1
+      memory: 1Gi
+  - type: Container
+    defaultRequest:	## container에 resources 를 생략시 자동으로 request cpu 100m
+      cpu: 100m
+      memory: 10Mi
+    default:		## container에 resources 를 생략시 자동으로 limit cpu 200m
+      cpu: 200m
+      memory: 100Mi
+    min:		## container에 resources 를 제한할때  cpu가 최소 50m 최대 1000m
+      cpu: 50m
+      memory: 5Mi
+    max:
+      cpu: 1
+      memory: 1Gi
+    maxLimitRequestRatio:   ## cpu : request 값에 대해 limit 값은 4배까지 설정가능
+      cpu: 4
+      memory: 10
+  - type: PersistentVolumeClaim	
+    min:
+      storage: 1Gi
+    max:
+      storage: 10Gi
+
+# cat > quota.yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: cpu-and-mem
+spec:
+  hard:
+    requests.cpu: 400m
+    requests.memory: 200Mi
+    limits.cpu: 600m
+    limits.memory: 500Mi
+
+
+# cat > resource.yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: object
+spec:
+  hard:
+    pods: 10
+    secrets: 10
+    services: 5
+    services.nodeports: 2
+
+
+https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler
+
+# git clone https://github.com/kubernetes/autoscaler.git
+
+
+--- HPA-------------
+# kubectl run php-apache --image=smlinux/hpa-example --requests=cpu=200m --expose --port=80
+# kubectl get deployments
+# kubectl get service
+
+# kubectl autoscale deployment php-apache --cpu-percent=50 --min=1 --max=10
+
+T1# watch kubectl get hpa
+T2# kubectl run -i --tty load-generator --image=busybox -- /bin/sh
+   /# while true; do wget -q -O- http://php-apache.default.svc.cluster.local; done
+
+
+
+	분(0-59)		시(0-23) 	일(1-31)	월(1-12)	요일(0,1-5,6,7)
+	"0,15,30,45      *      *       *        *"
+
+# cat > deployment.yaml
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: app
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: hpe
+    spec:
+      containers:
+      - image: smlinux/app:v1
+        name: nodejs
+        ports:
+        - containerPort: 8080
+
+# cat > svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: hpe
+
+  MinReadySeconds:        0
+  progressDeadlineSeconds: 600   
+
+  revisionHistoryLimit: 3
+ strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+
+
+# kubectl patch deployments app -p '{"spec":{"minReadySeconds": 10}}'
+
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: app
+spec:
+  minReadySeconds: 10
+  progressDeadlineSeconds: 600
+  replicas: 3
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: hpe
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+	...  MinReadySeconds:        0
+  progressDeadlineSeconds: 600   
+
+  revisionHistoryLimit: 3
+ strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+
+
+# kubectl patch deployments app -p '{"spec":{"minReadySeconds": 10}}'
+
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: app
+spec:
+  minReadySeconds: 10
+  progressDeadlineSeconds: 600
+  replicas: 3
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: hpe
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+	...
+
+# kubectl set image deployment app nodejs=smlinux/app:v2
+
+
+
+# kubectl taint node node21.example.com node-type=production:NoSchedule
+# kubectl taint node node22.example.com node-type=production:NoSchedule
+
+
+# kubec  MinReadySeconds:        0
+  progressDeadlineSeconds: 600   
+
+  revisionHistoryLimit: 3
+ strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+
+
+# kubectl patch deployments app -p '{"spec":{"minReadySeconds": 10}}'
+
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: app
+spec:
+  minReadySeconds: 10
+  progressDeadlineSeconds: 600
+  replicas: 3
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: hpe
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+	...
+
+# kubectl set image deployment app nodejs=smlinux/app:v2
+
+
+
+# kubectl taint node node21.example.com node-type=production:NoSchedule
+# kubectl taint node node22.example.com node-type=production:NoSchedule
+pp:v2
+
+
+
+# kubectl taint node node21.example.com node-type=production:NoSchedule
+# kubectl taint node node22.example.com node-type=production:NoSchedule
+
+
