@@ -33,6 +33,9 @@ servers = [
 
 # This script to install k8s using kubeadm will get executed after a box is provisioned
 $configureBox = <<-SCRIPT
+    # update yum
+    yum update -y
+
     # install docker 
     yum install -y yum-utils device-mapper-persistent-data lvm2
     yum-config-manager   --add-repo  https://download.docker.com/linux/centos/docker-ce.repo
