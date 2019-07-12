@@ -1,0 +1,67 @@
+# kubectl label node node21.example.com availability-zone=zone1
+# kubectl label node node21.example.com share-type=dedicated
+# kubectl label node node22.example.com availability-zone=zone2
+# kubectl label node node22.example.com share-type=shared
+
+# kubectl get nodes -L availability-zone,share-type
+
+
+- weight: 80
+   preference:
+matchExpressions:
+- key: availability-zone
+operator: In
+values:
+- zone1
+- weight: 20
+preference:
+matchExpressions:
+- key: share-type
+operator: In
+values:
+- dedicated
+
+
+
+kubectl run backend -l app=backend --image busybox -- sleep 999999
+
+T2# kubectl exec  -it curl-custom-sa  -c main -- ls /var/run/secrets/kubernetes.io/serviceaccount -l
+
+T2# kubectl exec -it curl-custom-sa -c main curl localhost:8001/api/v1/pods
+
+
+
+# kubectl create ns foo
+# kubectl create ns bar
+# kubectl get namespaces
+
+# kubectl run test --image=smlinux/kubectl-proxy -n foo
+# kubectl run test --image=smlinux/kubectl-proxy -n bar
+
+
+# kubectl get deployment -n foo
+
+
+# kubectl create -f service-reader.yaml -n fo
+# kubectl create role service-reader --verb=get --verb=list --resource=services -n bar
+
+
+# kubectl create rolebinding test --role=service-reader --serviceaccount=foo:default -n foo
+
+
+T2/# curl localhost:8001/api/v1/namespaces/foo/services
+T2/# curl localhost:8001/api/v1/namespaces/foo/pods
+
+T2/# curl localhost:8001/api/v1/namespaces/bar/services
+
+
+kubectl create clusterrole pv-reader --verb=get,list --resource=persistentvolumes
+kubectl create clusterrolebinding pv-test --clusterrole=pv-reader --serviceaccount=foo:default
+/# curl localhost:8001/api/v1/persistentvolumes
+curl localhost:8001/api/v1/persistentvolumes
+
+
+kubectl create clusterrolebinding view-test --clusterrole=view --serviceaccount=foo:default
+
+
+

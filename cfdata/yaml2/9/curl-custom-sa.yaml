@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: curl-custom-sa
+spec:
+  serviceAccountName: foo
+  containers:
+  - name: main
+    image: smlinux/curl
+    command: ["sleep", "9999999"]
+  - name: ambassador
+    image: smlinux/kubectl-proxy:1.6.2

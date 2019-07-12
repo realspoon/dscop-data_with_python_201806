@@ -1,0 +1,4 @@
+redmineusername: guru
+redminePassword: guru
+persistence.size: 1Gi
+serviceType: NodePort

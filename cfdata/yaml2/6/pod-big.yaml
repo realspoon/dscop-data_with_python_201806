@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: limit-big
+spec:
+  containers:
+  - image: smlinux/appjs
+    name: kubia
+    ports:
+    - containerPort: 8080
+    resources:
+      requests:
+        cpu: 2
