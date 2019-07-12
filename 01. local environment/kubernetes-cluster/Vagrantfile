@@ -1,0 +1,74 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+servers = [
+    {
+        :name => "k8s-head",
+        :type => "master",
+        :box => "centos/7",
+        :box_version => "1905.1",
+        :eth1 => "192.168.205.10",
+        :mem => "2048",
+        :cpu => "2"
+    },
+    {
+        :name => "k8s-node-1",
+        :type => "node",
+        :box => "centos/7",
+        :box_version => "1905.1",
+        :eth1 => "192.168.205.11",
+        :mem => "2048",
+        :cpu => "2"
+    },
+    {
+        :name => "k8s-node-2",
+        :type => "node",
+        :box => "centos/7",
+        :box_version => "1905.1",
+        :eth1 => "192.168.205.12",
+        :mem => "2048",
+        :cpu => "2"
+    }
+]
+
+# This script to install k8s using kubeadm will get executed after a box is provisioned
+$configureBox = <<-SCRIPT
+SCRIPT
+
+$configureMaster = <<-SCRIPT
+SCRIPT
+
+$configureNode = <<-SCRIPT
+SCRIPT
+
+Vagrant.configure("2") do |config|
+
+    servers.each do |opts|
+        config.vm.define opts[:name] do |config|
+
+            config.vm.box = opts[:box]
+            config.vm.box_version = opts[:box_version]
+            config.vm.hostname = opts[:name]
+            config.vm.network :private_network, ip: opts[:eth1]
+
+            config.vm.provider "virtualbox" do |v|
+
+                v.name = opts[:name]
+            	 v.customize ["modifyvm", :id, "--groups", "/Ballerina Development"]
+                v.customize ["modifyvm", :id, "--memory", opts[:mem]]
+                v.customize ["modifyvm", :id, "--cpus", opts[:cpu]]
+            end
+
+            config.vm.provision "shell", inline: $configureBox
+
+            if opts[:type] == "master"
+                config.vm.provision "shell", inline: $configureMaster
+            else
+                config.vm.provision "shell", inline: $configureNode
+            end
+
+        end
+
+    end
+
+end 

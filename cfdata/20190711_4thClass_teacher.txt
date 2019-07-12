@@ -244,11 +244,7 @@ spec:
 
 # kubectl taint node node21.example.com node-type=production:NoSchedule
 # kubectl taint node node22.example.com node-type=production:NoSchedule
-pp:v2
 
-
-
-# kubectl taint node node21.example.com node-type=production:NoSchedule
-# kubectl taint node node22.example.com node-type=production:NoSchedule
+# kubectl run test --image busybox --replicas 5 -- sleep 99999
 
 
