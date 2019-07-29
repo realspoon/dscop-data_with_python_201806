@@ -39,7 +39,7 @@ $configureBox = <<-SCRIPT
     yum update -y
 
     # install docker 
-    yum install -y yum-utils device-mapper-persistent-data lvm2
+    yum install -y yum-utils device-mapper-persistent-data lvm2 net-tools
     yum-config-manager   --add-repo  https://download.docker.com/linux/centos/docker-ce.repo
     yum install docker-ce docker-ce-cli containerd.io -y
     systemctl start docker && systemctl enable docker 
@@ -84,6 +84,10 @@ EOF
 SCRIPT
 
 $configureMaster = <<-SCRIPT
+
+    IP_ADDR=`ifconfig eth1 | grep mask | awk '{print $2}' | cut -f2 -d:`
+    HOSTNAME=$(hostname -s)
+    
 SCRIPT
 
 $configureNode = <<-SCRIPT
