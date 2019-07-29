@@ -1,6 +1,8 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+
+# cf link : https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
 servers = [
     {
         :name => "k8s-head",
