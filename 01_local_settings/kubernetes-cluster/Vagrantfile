@@ -90,8 +90,8 @@ $configureMaster = <<-SCRIPT
     echo $IP_ADDR
     
     # HOSTNAME
-    HOSTNAME=$(hostname -s)
-    echo $HOSTNAME
+    HOST_NAME=$(hostname -s)
+    echo $HOST_NAME
 SCRIPT
 
 $configureNode = <<-SCRIPT
@@ -119,7 +119,7 @@ Vagrant.configure("2") do |config|
             config.vm.provision "shell", inline: $configureBox
 
             if opts[:type] == "master"
-                config.vm.provision "shell", inline: $configureMaster
+                config.vm.provision "shell", inline: $configurxeMaster
             else
                 config.vm.provision "shell", inline: $configureNode
             end
