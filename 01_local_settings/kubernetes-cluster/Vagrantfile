@@ -141,6 +141,7 @@ SCRIPT
 
 $configureNode = <<-SCRIPT
 echo "This is worker"
+# Install noninteractive ssh password provider
 yum install -y sshpass
 sshpass -p "vagrant" scp -o StrictHostKeyChecking=no vagrant@192.168.205.10:/etc/kubeadm_join_cmd.sh .
 sh ./kubeadm_join_cmd.sh
