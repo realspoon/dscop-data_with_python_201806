@@ -38,10 +38,13 @@ $configureBox = <<-SCRIPT
 # update yum
 yum update -y
 
-# install docker 
+# install docker # selecting 18.09
 yum install -y yum-utils device-mapper-persistent-data lvm2 net-tools
 yum-config-manager   --add-repo  https://download.docker.com/linux/centos/docker-ce.repo
 yum install docker-ce-18.09.0-3.el7 docker-ce-cli-18.09.0-3.el7 containerd.io -y
+
+# Change cgroup drivers
+# Changing the settings such that your container runtime and kubelet use systemd as the cgroup driver stabilized the system. 
 # Create /etc/docker directory
 mkdir /etc/docker
 # Setup daemon
@@ -161,9 +164,6 @@ Vagrant.configure("2") do |config|
                 v.customize ["modifyvm", :id, "--cpus", opts[:cpu]]
 
             end
-
-            # we cannot use this because we can't install the docker version we want - https://github.com/hashicorp/vagrant/issues/4871
-            #config.vm.provision "docker"
 
             config.vm.provision "shell", inline: $configureBox
 
